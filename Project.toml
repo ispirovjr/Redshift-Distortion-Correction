@@ -1,0 +1,27 @@
+name = "RedshiftDistortionCorrection"
+uuid = "e4a3b5c7-1d2f-4a6b-9e8c-0f1a2b3c4d5e"
+authors = ["Ivan Spirov"]
+version = "0.1.0"
+
+[deps]
+Flux = "587475ba-b771-5e3f-ad9e-33799f191a9c"
+JLD2 = "033835bb-8acc-5ee8-8aae-3f567f8a3819"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+ProgressMeter = "92933f4c-e287-5a05-a399-4b506db050ca"
+Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
+Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
+TetGen = "c5d3f3f7-f850-59f6-8a2e-ffc6dc1317ea"
+
+[compat]
+julia = "1.10"
+Flux = "0.16"
+JLD2 = "0.5"
+ProgressMeter = "1"
+TetGen = "2"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]
