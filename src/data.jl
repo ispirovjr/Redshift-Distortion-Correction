@@ -77,7 +77,7 @@ Return disjoint index vectors for train / validation / test splits.
 """
 function splitData(n::Int; trainFrac::Float64=0.7,
     valFrac::Float64=0.15, seed::Int=42)
-    rng = MersenneTwister(seed) # we shouldn't seed for test splits
+    rng = MersenneTwister(seed)
     perm = randperm(rng, n)
 
     nTrain = round(Int, trainFrac * n)

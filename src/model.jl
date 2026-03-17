@@ -90,9 +90,9 @@ function (net::RedshiftCorrectionNet)(x::AbstractMatrix, neighborIdx::AbstractMa
     h = net.conv1(x, neighborIdx)          # 3  → H,  ReLU
     h = net.conv2(h, neighborIdx)          # H  → H,  ReLU
     δ = net.dense(h)                       # H  → 1,  linear
-    rObs = x[1:1, :]                          # extract r_obs (1st feature row)
-    rCorr = Flux.relu.(rObs .+ δ)              # skip + positivity
-    return rCorr                               # 1 × N
+    rObs = x[1:1, :]                       # extract r_obs (1st feature row)
+    rCorr = rObs .+ δ                      # skip connection
+    return rCorr                           # 1 × N
 end
 
 """
@@ -101,8 +101,8 @@ Build the default correction network:
 """
 function buildCorrectionNetwork(; hiddenDim::Int=32)
     RedshiftCorrectionNet(
-        NaturalNeighborConv(3 => hiddenDim; σ=Flux.relu),
-        NaturalNeighborConv(hiddenDim => hiddenDim; σ=Flux.relu),
+        NaturalNeighborConv(3 => hiddenDim; σ=Flux.sigmoid),
+        NaturalNeighborConv(hiddenDim => hiddenDim; σ=Flux.sigmoid),
         Flux.Dense(hiddenDim, 1),   # linear output (correction δ)
     )
 end
