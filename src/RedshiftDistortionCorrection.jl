@@ -11,6 +11,7 @@ using Flux
 using TetGen
 using JLD2
 using ProgressMeter
+using CUDA
 
 # ── Submodules ───────────────────────────────────────────────────
 include("graph.jl")
@@ -31,7 +32,8 @@ export NaturalNeighborConv, RedshiftCorrectionNet, buildCorrectionNetwork
 export loadDataset, generateSyntheticData, splitData
 
 # Training
-export train!, saveCheckpoint, loadCheckpoint
+export train!, trainGPU!, trainSilent!, saveCheckpoint, loadCheckpoint, uncertaintyLoss, normalizePerFile
+export cosineAnnealLR, clipGradNorm!, LOG_SIGMA_FLOOR
 
 # Utils
 export computeMetrics, makeSectorData

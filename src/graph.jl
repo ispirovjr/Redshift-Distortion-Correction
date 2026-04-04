@@ -71,6 +71,9 @@ each node (sorted by ascending distance).
 Returns a `4 × N` matrix where `neighborIdx[j, i]` is the j-th
 nearest Delaunay neighbor of node `i`.
 
+Note: Convex hull corner vertices in a finite tessellation may have
+fewer than 4 Delaunay neighbors. In that case, the nearest available
+neighbor is repeated to fill the remaining slots.
 """
 function buildNeighborIdx(points::Matrix{Float64}, neighbors::Vector{Vector{Int}})
 
@@ -80,13 +83,22 @@ function buildNeighborIdx(points::Matrix{Float64}, neighbors::Vector{Vector{Int}
 
     for i in 1:n
         nbrs = neighbors[i] #the neighbors of node i
+        nAvail = length(nbrs)
+
+        if nAvail == 0
+            # Degenerate isolated node — self-loop
+            neighborIdx[:, i] .= i
+            continue
+        end
 
         # Compute distances to each neighbor and sort them
         dists = [norm(@view(points[:, j]) .- @view(points[:, i])) for j in nbrs]
         order = sortperm(dists)
 
         for j in 1:k
-            neighborIdx[j, i] = nbrs[order[j]]
+            # Pad with nearest neighbor if fewer than k available
+            idx = j <= nAvail ? order[j] : order[nAvail]
+            neighborIdx[j, i] = nbrs[idx]
         end
     end
 

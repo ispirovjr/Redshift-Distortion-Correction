@@ -5,10 +5,7 @@
 #    5 independent weight matrices (W_self, W₁–W₄), one per
 #    neighbor slot.  Neighbors are sorted by distance so each
 #    W_k always applies to the k-th nearest neighbor.
-#
-#  Network:  2× NNConv  →  Dense  →  skip(r_obs)  →  R_corr
 # ══════════════════════════════════════════════════════════════════
-
 # ── NaturalNeighborConv ──────────────────────────────────────────
 
 """
@@ -34,13 +31,13 @@ struct NaturalNeighborConv{F,D} #F- Function, D- Dense layer
     w2::D
     w3::D
     w4::D
-    bias::Vector{Float32}
+    bias::AbstractVector{Float32}
     σ::F
 end
 
 Flux.@layer NaturalNeighborConv
 
-function NaturalNeighborConv(ch::Pair{Int,Int}; σ=Flux.relu) # ch is the input and output channels
+function NaturalNeighborConv(ch::Pair{Int,Int}; σ=Flux.leakyrelu) # ch is the input and output channels
     inCh, outCh = ch
     NaturalNeighborConv(
         Flux.Dense(inCh, outCh; bias=false),  # wSelf
@@ -68,41 +65,47 @@ end
 """
     RedshiftCorrectionNet
 
-End-to-end network for redshift distortion correction.
+End-to-end network for redshift distortion correction with uncertainty.
 
-Architecture:
-    (r_obs, θ, φ)  →  NNConv₁(3→H)  →  NNConv₂(H→H)  →  Dense(H→1)
-                                                               ↓
-                         r_obs ──── skip connection ──────→  (+)  →  ReLU  →  R_corr
-
-The skip connection adds the original `r_obs` (1st input feature) to the
-dense output, so the network only needs to learn the correction term.
+The second output row is log(σ), the log-uncertainty.
+Returns a tuple `(rCorr, logσ)`, each `1 × N`.
 """
-struct RedshiftCorrectionNet{C1,C2,D}
+struct RedshiftCorrectionNet{C1,C2,C3,N1,N2,D}
     conv1::C1
+    norm1::N1
     conv2::C2
+    norm2::N2
+    conv3::C3
     dense::D
 end
 
 Flux.@layer RedshiftCorrectionNet
 
 function (net::RedshiftCorrectionNet)(x::AbstractMatrix, neighborIdx::AbstractMatrix{<:Integer})
-    h = net.conv1(x, neighborIdx)          # 3  → H,  ReLU
-    h = net.conv2(h, neighborIdx)          # H  → H,  ReLU
-    δ = net.dense(h)                       # H  → 1,  linear
+    h = net.conv1(x, neighborIdx)          # 3  → H,  LeakyReLU
+    h = net.norm1(h)                       # LayerNorm
+    h = net.conv2(h, neighborIdx)          # H  → H,  LeakyReLU
+    h = net.norm2(h)                       # LayerNorm
+    h = net.conv3(h, neighborIdx)           # H  → H,  LeakyReLU
+    out = net.dense(h)                     # H  → 2,  linear
+    δ = out[1:1, :]                     # correction term
+    logσ = out[2:2, :]                     # log-uncertainty
     rObs = x[1:1, :]                       # extract r_obs (1st feature row)
     rCorr = rObs .+ δ                      # skip connection
-    return rCorr                           # 1 × N
+    return (rCorr, logσ)                   # tuple of 1 × N each
 end
 
 """
-Build the default correction network:
-  2× NaturalNeighborConv (3→H→H, ReLU)  +  Dense (H→1)  +  skip.
+Build the default correction network with uncertainty output:
+  3× NaturalNeighborConv (3→H→H→H, leakyrelu) + LayerNorm + Dense (H→2) + skip.
 """
-function buildCorrectionNetwork(; hiddenDim::Int=32)
+function buildCorrectionNetwork(; firstHiddenDim::Int=32, secondHiddenDim::Int=64)
     RedshiftCorrectionNet(
-        NaturalNeighborConv(3 => hiddenDim; σ=Flux.sigmoid),
-        NaturalNeighborConv(hiddenDim => hiddenDim; σ=Flux.sigmoid),
-        Flux.Dense(hiddenDim, 1),   # linear output (correction δ)
+        NaturalNeighborConv(3 => firstHiddenDim; σ=Flux.leakyrelu),
+        Flux.LayerNorm(firstHiddenDim),
+        NaturalNeighborConv(firstHiddenDim => secondHiddenDim; σ=Flux.leakyrelu),
+        Flux.LayerNorm(secondHiddenDim),
+        NaturalNeighborConv(secondHiddenDim => firstHiddenDim; σ=Flux.leakyrelu),
+        Flux.Dense(firstHiddenDim, 2),   # 2 outputs: correction δ and logσ #check activtation = linear
     )
 end
